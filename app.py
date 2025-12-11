@@ -98,9 +98,11 @@ if "vrp_result" not in st.session_state:
 if "veh_sel" not in st.session_state:
     st.session_state.veh_sel = []
 
+# 🔄 Förbättrad reset – rensa även widget-state
 if reset_btn:
-    st.session_state.vrp_result = None
-    st.session_state.veh_sel = []
+    for key in ("vrp_result", "veh_sel", "veh_multiselect"):
+        if key in st.session_state:
+            del st.session_state[key]
     st.rerun()
 
 # ---------- Utils ----------
@@ -192,7 +194,7 @@ def generate_points_on_roads(G_cc, edges, cum, tot, n_points, min_spacing_m, see
     else:
         while len(pts) < n_points and tries < max_tries:
             lat, lon = sample_point_on_edge(edges, cum, tot)
-            if all(haversine_m(lat, lon, la, lo) >= min_spacing_m for la,lo in pts):
+            if all(haversine_m(lat, lon, la,lo) >= min_spacing_m for la,lo in pts):
                 pts.append((lat, lon))
             tries += 1
 
@@ -712,10 +714,32 @@ if res is None:
     st.info("Välj inställningar i sidofältet och klicka **Run optimization** för att generera rutter.")
 else:
     st.subheader("Interactive Map", divider="gray")
+
+    # 🚚 Säker hantering av multiselect-state
     veh_labels = [f"Vehicle {i+1}" for i in range(len(res["veh_polys"]))] or []
-    default_sel = st.session_state.veh_sel or veh_labels
-    veh_sel = st.multiselect("Show vehicles", veh_labels, default=default_sel, key="veh_multiselect")
+
+    # Rensa gamla värden som inte längre finns i veh_labels
+    if "veh_multiselect" in st.session_state:
+        st.session_state.veh_multiselect = [
+            v for v in st.session_state.veh_multiselect
+            if v in veh_labels
+        ]
+
+    # Bestäm default-val
+    current = st.session_state.get("veh_multiselect", None)
+    if current:
+        default_sel = [v for v in current if v in veh_labels]
+    else:
+        default_sel = veh_labels
+
+    veh_sel = st.multiselect(
+        "Show vehicles",
+        options=veh_labels,
+        default=default_sel,
+        key="veh_multiselect",
+    )
     st.session_state.veh_sel = veh_sel
+
     show_bins = st.checkbox("Show bin points (cluster colors)", value=False, key="bins_chk")
 
     depot_lat, depot_lon = res["depot"]
